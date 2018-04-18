@@ -24,8 +24,8 @@ winMonitor
 
 # Import directives
 import ctypes
-import math
 import re
+from PIL import Image
 
 # Mapping with Windows dll
 win32   = ctypes.windll.user32
@@ -41,6 +41,10 @@ _SM_CMONITORS               = 80
 _MONITOR_DEFAULTTONEAREST   = 2
 _CF_BITMAP                  = 2
 _SRCCOPY                    = 13369376
+_BI_RGB                     = 0
+_BI_JPEG                    = 4
+_BI_PNG                     = 5
+_DIB_RGB_COLORS             = 0
 
 class POINT(ctypes.Structure):
     # https://msdn.microsoft.com/en-us/library/system.windows.point.point(v=vs.110).aspx
@@ -53,27 +57,71 @@ class DEVICE_SCALE_FACTOR(ctypes.Structure):
 
 class RECT(ctypes.Structure):
     # https://msdn.microsoft.com/en-us/library/windows/desktop/dd162897(v=vs.85).aspx
-    _fields_ = [("left", ctypes.c_long),
-                ("top", ctypes.c_long),
-                ("right", ctypes.c_long),
-                ("bottom", ctypes.c_long)]
+    _fields_ = [("left",    ctypes.c_long),
+                ("top",     ctypes.c_long),
+                ("right",   ctypes.c_long),
+                ("bottom",  ctypes.c_long)]
 
 class tagMONITORINFOEX(ctypes.Structure):
     # https://msdn.microsoft.com/en-us/library/windows/desktop/dd145066(v=vs.85).aspx
-    _fields_ = [("cbSize", ctypes.c_ulong),
-                ("rcMonitor", RECT),
-                ("rcWork", RECT),
-                ("dwFLags", ctypes.c_ulong),
-                ("szDevice", ctypes.c_wchar * 32)]
+    _fields_ = [("cbSize",      ctypes.c_ulong),
+                ("rcMonitor",   RECT),
+                ("rcWork",      RECT),
+                ("dwFLags",     ctypes.c_ulong),
+                ("szDevice",    ctypes.c_wchar * 32)]
 
 class DISPLAY_DEVICE(ctypes.Structure):
     # https://msdn.microsoft.com/en-us/library/windows/desktop/dd183569(v=vs.85).aspx
-    _fields_ = [("cb", ctypes.c_ulong),
-                ("DeviceName",ctypes.c_wchar * 32),
+    _fields_ = [("cb",          ctypes.c_ulong),
+                ("DeviceName",  ctypes.c_wchar * 32),
                 ("DeviceString",ctypes.c_wchar * 128),
-                ("StateFlags", ctypes.c_ulong),
-                ("DeviceID", ctypes.c_wchar * 128),
-                ("DeviceKey", ctypes.c_wchar * 128)]
+                ("StateFlags",  ctypes.c_ulong),
+                ("DeviceID",    ctypes.c_wchar * 128),
+                ("DeviceKey",   ctypes.c_wchar * 128)]
+
+class BITMAP(ctypes.Structure):
+    # https://msdn.microsoft.com/en-us/library/windows/desktop/dd183371(v=vs.85).aspx
+    _fields_ = [("bmType",          ctypes.c_long),
+                ("bmWidth",         ctypes.c_long),
+                ("bmHeight",        ctypes.c_long),
+                ("bmWidthBytes",    ctypes.c_long),
+                ("bmPlanes",        ctypes.c_ushort),
+                ("bmBitsPixel",     ctypes.c_ushort),
+                ("bmBits",          ctypes.c_void_p)]
+
+class BITMAPFILEHEADER(ctypes.Structure):
+    # https://msdn.microsoft.com/en-us/library/windows/desktop/dd183374(v=vs.85).aspx
+    _fields_ = [("bfType",      ctypes.c_ushort),
+                ("bfSize",      ctypes.c_ulong),
+                ("bfReserved1", ctypes.c_ushort),
+                ("bfReserved2", ctypes.c_ushort),
+                ("bfOffBits",   ctypes.c_ulong)]
+
+class BITMAPINFOHEADER(ctypes.Structure):
+    # https://msdn.microsoft.com/en-us/library/windows/desktop/dd183376(v=vs.85).aspx
+    _fields_ = [("biSize",          ctypes.c_ulong),
+                ("biWidth",         ctypes.c_long),
+                ("biHeight",        ctypes.c_long),
+                ("biPlanes",        ctypes.c_ushort),
+                ("biBitCount",      ctypes.c_ushort),
+                ("biCompression",   ctypes.c_ulong),
+                ("biSizeImage",     ctypes.c_ulong),
+                ("biXPelsPerMeter", ctypes.c_long),
+                ("biYPelsPerMeter", ctypes.c_long),
+                ("biClrUsed",       ctypes.c_ulong),
+                ("biClrImportant",  ctypes.c_ulong)]
+
+class RGBQUAD(ctypes.Structure):
+    # https://msdn.microsoft.com/en-us/library/windows/desktop/dd162938(v=vs.85).aspx
+    _fields_ = [("rgbBlue",     ctypes.c_byte),
+                ("rgbGreen",    ctypes.c_byte),
+                ("rgbRed",      ctypes.c_byte),
+                ("rgbReserved", ctypes.c_byte)]
+
+class BITMAPINFO(ctypes.Structure):
+    # https://msdn.microsoft.com/en-us/library/windows/desktop/dd183375(v=vs.85).aspx
+    _fields_ = [("bmiHeader", BITMAPINFOHEADER),
+                ("bmiColors", RGBQUAD)]
 
 class Monitor():
     # Class who defined a single monitor
@@ -100,28 +148,29 @@ class Monitor():
         return(self.top, self.left, self.right, self.bottom)
     
     def printMonitorInfo(self):
-        print('{0:8} : {1:32}'.format('name', self.name))
-        print('{0:8} : {1:32}'.format('id', self.id))
-        print('{0:8} : {1:4d}'.format('flags', self.flags))
-        print('{0:8} : {1:4d}'.format('scale', self.scale))
-        print('{0:8} : {1:4d}'.format('width', self.width))
-        print('{0:8} : {1:4d}'.format('height', self.height))
-        print('{0:8} : {1:4d}'.format('vwidth', self.vwidth))
-        print('{0:8} : {1:4d}'.format('vheight', self.vheight))
-        print('{0:8} : {1:4d}'.format('top', self.top))
-        print('{0:8} : {1:4d}'.format('left', self.left))
-        print('{0:8} : {1:4d}'.format('right', self.right))
-        print('{0:8} : {1:4d}'.format('bottom', self.bottom))
+        print("{0:8} : {1:32}".format("name", self.name))
+        print("{0:8} : {1:32}".format("id", self.id))
+        print("{0:8} : {1:4d}".format("flags", self.flags))
+        print("{0:8} : {1:4d}".format("scale", self.scale))
+        print("{0:8} : {1:4d}".format("width", self.width))
+        print("{0:8} : {1:4d}".format("height", self.height))
+        print("{0:8} : {1:4d}".format("vwidth", self.vwidth))
+        print("{0:8} : {1:4d}".format("vheight", self.vheight))
+        print("{0:8} : {1:4d}".format("top", self.top))
+        print("{0:8} : {1:4d}".format("left", self.left))
+        print("{0:8} : {1:4d}".format("right", self.right))
+        print("{0:8} : {1:4d}".format("bottom", self.bottom))
 
-    def takeScreenshot(self):
+    def screenshotToClipboard(self):
+        '''Take screenshot of monitor and paste it into clipboard'''
         # Copy screen into a bitmap
         hScreen = win32.GetDC(None)
         hDC     = gdi32.CreateCompatibleDC(hScreen)
         hBitmap = gdi32.CreateCompatibleBitmap(hScreen, self.width, self.height)
         old_obj = gdi32.SelectObject(hDC, hBitmap)
+        gdi32.BitBlt(hDC, 0, 0, self.width, self.height, hScreen, self.left, self.top, _SRCCOPY)
 
         # Save bitmap inside clipboard
-        gdi32.BitBlt(hDC, 0, 0, self.width, self.height, hScreen, self.left, self.top, _SRCCOPY)
         win32.OpenClipboard(None)
         win32.EmptyClipboard()
         win32.SetClipboardData(_CF_BITMAP, hBitmap)
@@ -133,9 +182,41 @@ class Monitor():
         win32.ReleaseDC(None, hScreen)
         gdi32.DeleteObject(hBitmap)
 
+    def screenshotToImage(self, compression):
+        '''Take screenshot of monitor and paste it into PIL Image
+        Source from : https://msdn.microsoft.com/en-us/library/windows/desktop/dd183402(v=vs.85).aspx
+        compression : 'bmp', 'jpg', 'png'''
+
+        # Copy screen into a bitmap
+        hScreen = win32.GetDC(None)
+        hDC     = gdi32.CreateCompatibleDC(hScreen)
+        hBitmap = gdi32.CreateCompatibleBitmap(hScreen, self.width, self.height)
+        old_obj = gdi32.SelectObject(hDC, hBitmap)
+        gdi32.BitBlt(hDC, 0, 0, self.width, self.height, hScreen, self.left, self.top, _SRCCOPY)
+
+        # Put bitmap data into buffer for PIL
+        bitmap                          = BITMAPINFO()
+        bitmap.bmiHeader.biSize         = ctypes.sizeof(BITMAPINFOHEADER)
+        bitmap.bmiHeader.biSizeImage    = int(self.width * self.height * bitmap.bmiHeader.biBitCount)
+        if      "bmp" in compression.lower():   bitmap.bmiHeader.biCompression = _BI_RGB
+        elif    "jpg" in compression.lower():   bitmap.bmiHeader.biCompression = _BI_JPEG
+        elif    "png" in compression.lower():   bitmap.bmiHeader.biCompression = _BI_PNG
+        gdi32.GetDIBits(hScreen, hBitmap, 0, self.height, None, ctypes.byref(bitmap), _DIB_RGB_COLORS)
+        pBuffer                         = (RGBQUAD * bitmap.bmiHeader.biSizeImage)()
+        gdi32.GetBitmapBits(hBitmap, bitmap.bmiHeader.biSizeImage, pBuffer)
+
+        # Clean bitmap
+        gdi32.SelectObject(hDC, old_obj)
+        gdi32.DeleteDC(hDC)
+        win32.ReleaseDC(None, hScreen)
+        gdi32.DeleteObject(hBitmap)
+
+        # Return PIL Image
+        return Image.frombuffer("RGB", (self.width, self.height), pBuffer, "raw", "BGRX", 0, 1)
+
 class Monitors():
     # Class that contains all the monitors
-    monitors    = [] # List of all monitor objects
+    contents    = [] # List of all monitor objects
     nbMonitors  = win32.GetSystemMetrics(_SM_CMONITORS) # Number of display monitors on desktop without the virtual one
 
     def __init__(self):  
@@ -175,11 +256,11 @@ class Monitors():
             currentScreen.top       = screenInfo.rcMonitor.top
             currentScreen.right     = screenInfo.rcMonitor.right
             currentScreen.bottom    = screenInfo.rcMonitor.bottom
-            currentScreen.vwidth    = int(math.fabs(math.fabs(currentScreen.right) - currentScreen.left))
-            currentScreen.vheight   = int(math.fabs(math.fabs(currentScreen.bottom) - currentScreen.top))
-            currentScreen.width     = int(math.fabs(math.fabs(currentScreen.right) - currentScreen.left) * (currentScreen.scale / 100))
-            currentScreen.height    = int(math.fabs(math.fabs(currentScreen.bottom) - currentScreen.top) * (currentScreen.scale / 100))
-            self.monitors.append(currentScreen)
+            currentScreen.vwidth    = int(abs(abs(currentScreen.right) - currentScreen.left))
+            currentScreen.vheight   = int(abs(abs(currentScreen.bottom) - currentScreen.top))
+            currentScreen.width     = int(abs(abs(currentScreen.right) - currentScreen.left) * (currentScreen.scale / 100))
+            currentScreen.height    = int(abs(abs(currentScreen.bottom) - currentScreen.top) * (currentScreen.scale / 100))
+            self.contents.append(currentScreen)
             return 1
         win32.EnumDisplayMonitors(0, 0, MonitorEnumProc(InfoEnumProc), 0)
 
@@ -190,11 +271,11 @@ class Monitors():
         virtualScreen.flags     = 0
         virtualScreen.scale     = 0
         virtualScreen.top, virtualScreen.left, virtualScreen.right, virtualScreen.bottom = self._getMostCorner()
-        virtualScreen.width     = int(math.fabs(math.fabs(virtualScreen.right) - virtualScreen.left))
-        virtualScreen.height    = int(math.fabs(math.fabs(virtualScreen.bottom) - virtualScreen.top))
+        virtualScreen.width     = int(abs(abs(virtualScreen.right) - virtualScreen.left))
+        virtualScreen.height    = int(abs(abs(virtualScreen.bottom) - virtualScreen.top))
         virtualScreen.vwidth    = 0
         virtualScreen.vheight   = 0
-        self.monitors.append(virtualScreen)
+        self.contents.append(virtualScreen)
 
     def _getMostCorner(self):
         ''' Get the top/left/right/bottom-most point for all monitors
@@ -203,7 +284,7 @@ class Monitors():
         mostLeftPos = 0
         mostRightPos = 0
         mostBottomPos = 0
-        for monitor in self.monitors:
+        for monitor in self.contents:
             if (monitor.getMonitorPosition()[0] < mostTopPos):
                 mostTopPos      = monitor.getMonitorPosition()[0]
             if (monitor.getMonitorPosition()[1] < mostLeftPos):
@@ -215,10 +296,13 @@ class Monitors():
         return (mostTopPos, mostLeftPos, mostRightPos, mostBottomPos)
 
 if __name__ == "__main__":
+    format = "png"
     monitors = Monitors()
-    print("You have currently :", monitors.nbMonitors, " monitors connected\n")
-    for monitor in monitors.monitors:
+    print("You have currently :", monitors.nbMonitors, "monitors connected\n")
+    for monitor in monitors.contents:
         monitor.printMonitorInfo()
-        monitor.takeScreenshot()
+        monitor.screenshotToClipboard()
+        img = monitor.screenshotToImage(format)
+        img.save(monitor.name + '.' + format)
         print("Screenshot saved into clipboard")
-        input('Press Enter to continue\n')
+        input("Press Enter to continue\n")
