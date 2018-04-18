@@ -35,8 +35,9 @@ Class who defined a single monitor
 - __getMonitorResolution()__: Return real monitor resolution currently in use.
 - __getMonitorVirtualResolution()__: Return virtual monitor resolution currently in use, after windows scaling.
 - __getMonitorPosition()__: Return position of the monitor inside the virtual screen.
-- __printMonitorInfo()__: Print all attributes
-- __takeScreenshot()__: Take screenshot and save it into clipboard
+- __printMonitorInfo()__: Print all attributes.
+- __screenshotToClipboard()__: Take screenshot and save it into clipboard.
+- __screenshotToImage(compression)__: Take screenshot and save it into PIL Image. compression : "bmp", "jpg", "png"
 
 ### Monitors : 
 
